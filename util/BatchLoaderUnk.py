@@ -30,7 +30,7 @@ class BatchLoaderUnk:
 
         # construct a tensor with all the data
         if not (path.exists(vocab_file) or path.exists(tensor_file) or path.exists(char_file)):
-            print 'one-time setup: preprocessing input train/valid/test files in dir: ', data_dir
+            print('one-time setup: preprocessing input train/valid/test files in dir: ', data_dir)
             self.text_to_tensor(tokens, input_files, vocab_file, tensor_file, char_file, max_word_l)
 
         print('loading data files...')
@@ -42,7 +42,7 @@ class BatchLoaderUnk:
         vocab_mapping = np.load(vocab_file)
         self.idx2word, self.word2idx, self.idx2char, self.char2idx = vocab_unpack(vocab_mapping)
         self.vocab_size = len(self.idx2word)
-        print 'Word vocab size: %d, Char vocab size: %d' % (len(self.idx2word), len(self.idx2char))
+        print('Word vocab size: %d, Char vocab size: %d' % (len(self.idx2word), len(self.idx2char)))
         # create word-char mappings
         self.max_word_l = all_data_char[0].shape[1]
         # cut off the end for train/valid sets so that it divides evenly
@@ -89,8 +89,8 @@ class BatchLoaderUnk:
 
         self.batch_idx = [0,0,0]
         self.word_vocab_size = len(self.idx2word)
-        print 'data load done. Number of batches in train: %d, val: %d, test: %d' \
-              % (self.split_sizes[0], self.split_sizes[1], self.split_sizes[2])
+        print('data load done. Number of batches in train: %d, val: %d, test: %d' \
+              % (self.split_sizes[0], self.split_sizes[1], self.split_sizes[2]))
         gc.collect()
 
     def reset_batch_pointer(self, split_idx, batch_idx=0):
@@ -114,7 +114,7 @@ class BatchLoaderUnk:
             yield ({'word':word, 'chars':chars}, ydata)
 
     def text_to_tensor(self, tokens, input_files, out_vocabfile, out_tensorfile, out_charfile, max_word_l):
-        print 'Processing text into tensors...'
+        print('Processing text into tensors...')
         max_word_l_tmp = 0 # max word length of the corpus
         idx2word = [tokens.UNK] # unknown word token
         word2idx = OrderedDict()
@@ -152,7 +152,7 @@ class BatchLoaderUnk:
                 line = line.replace(tokens.START, '')  # start-of-word token is reserved
                 line = line.replace(tokens.END, '')  # end-of-word token is reserved
                 words = prog.split(line)
-                for word in filter(None, words):
+                for word in [_f for _f in words if _f]:
                     update(word)
                     max_word_l_tmp = max(max_word_l_tmp, len(word) + 2) # add 2 for start/end chars
                     counts += 1
@@ -162,26 +162,26 @@ class BatchLoaderUnk:
             f.close()
             split_counts.append(counts)
 
-        print 'Most frequent words:', len(wordcount)
+        print('Most frequent words:', len(wordcount))
         for ii, ww in enumerate(wordcount.most_common(self.n_words - 1)):
             word = ww[0]
             word2idx[word] = ii + 1
             idx2word.append(word)
-            if ii < 3: print word
+            if ii < 3: print(word)
 
-        print 'Most frequent chars:', len(charcount)
+        print('Most frequent chars:', len(charcount))
         for ii, cc in enumerate(charcount.most_common(self.n_chars - 4)):
             char = cc[0]
             char2idx[char] = ii + 4
             idx2char.append(char)
-            if ii < 3: print char
+            if ii < 3: print(char)
 
-        print 'Char counts:'
+        print('Char counts:')
         for ii, cc in enumerate(charcount.most_common()):
-            print ii, cc[0].encode(encoding), cc[1]
+            print(ii, cc[0].encode(encoding), cc[1])
                     
-        print 'After first pass of data, max word length is: ', max_word_l_tmp
-        print 'Token count: train %d, val %d, test %d' % (split_counts[0], split_counts[1], split_counts[2])
+        print('After first pass of data, max word length is: ', max_word_l_tmp)
+        print('Token count: train %d, val %d, test %d' % (split_counts[0], split_counts[1], split_counts[2]))
 
         # if actual max word length is less than the limit, use that
         max_word_l = min(max_word_l_tmp, max_word_l)
@@ -215,18 +215,18 @@ class BatchLoaderUnk:
                 line = line.replace(tokens.START, '')  # start-of-word token is reserved
                 line = line.replace(tokens.END, '')  # end-of-word token is reserved
                 words = prog.split(line)
-                for rword in filter(None, words):
+                for rword in [_f for _f in words if _f]:
                     word_num = append(rword, word_num)
                 if tokens.EOS != '':   # PTB does not have <eos> so we add a character for <eos> tokens
                     word_num = append(tokens.EOS, word_num)   # other datasets don't need this
             f.close()
             tensorfile_split = "{}_{}.npy".format(out_tensorfile, split)
-            print 'saving ', tensorfile_split
+            print('saving ', tensorfile_split)
             np.save(tensorfile_split, output_tensor)
             charfile_split = "{}_{}.npy".format(out_charfile, split)
-            print 'saving ', charfile_split
+            print('saving ', charfile_split)
             np.save(charfile_split, output_chars)
 
         # save output preprocessed files
-        print 'saving ', out_vocabfile
+        print('saving ', out_vocabfile)
         np.savez(out_vocabfile, idx2word=idx2word, word2idx=word2idx, idx2char=idx2char, char2idx=char2idx)

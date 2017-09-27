@@ -158,7 +158,7 @@ class sModel(Model):
             super(sModel, self).fit_generator(generator, steps_per_epoch, epochs=epoch+1, verbose=1, initial_epoch=epoch)
             val_loss = exp(self.evaluate_generator(validation_data, validation_steps))
             val_losses.append(val_loss)
-            print 'Epoch {}/{}. Validation loss: {}'.format(epoch + 1, epochs, val_loss)
+            print('Epoch {}/{}. Validation loss: {}'.format(epoch + 1, epochs, val_loss))
             if len(val_losses) > 2 and (val_losses[-2] - val_losses[-1]) < opt.decay_when:
                 lr *= opt.learning_rate_decay
                 K.set_value(self.optimizer.lr, lr)

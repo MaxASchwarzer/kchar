@@ -2,7 +2,7 @@ import codecs
 import numpy as np
 import re
 import argparse
-import cPickle as pickle
+import pickle as pickle
 from model.LSTMCNN import LSTMCNN
 from util.BatchLoaderUnk import Tokens, encoding # needed by pickle.load()
 from math import exp
@@ -20,7 +20,7 @@ class Vocabulary:
         vocab_mapping = np.load(vocab_file)
         self.idx2word, self.word2idx, self.idx2char, self.char2idx = vocab_unpack(vocab_mapping)
         self.vocab_size = len(self.idx2word)
-        print 'Word vocab size: %d, Char vocab size: %d' % (len(self.idx2word), len(self.idx2char))
+        print('Word vocab size: %d, Char vocab size: %d' % (len(self.idx2word), len(self.idx2char)))
         self.word_vocab_size = len(self.idx2word)
         self.char_vocab_size = len(self.idx2char)
 
@@ -51,7 +51,7 @@ class Vocabulary:
         line = line.replace(self.tokens.START, '')  # start-of-word token is reserved
         line = line.replace(self.tokens.END, '')  # end-of-word token is reserved
         words = self.prog.split(line)
-        for rword in filter(None, words):
+        for rword in [_f for _f in words if _f]:
             w, c = self.index(rword)
             output_words.append(w)
             output_chars.append(c)
@@ -103,7 +103,7 @@ def main(name, vocabulary, init, text, calc):
             for ssum, update in zip(state_sum, ev.model.state_updates_value):
                 ssum += update
             nl += 1
-            print "Perplexity = ", exp(lp/nw), "\t(", nl, ")", ssum[0][0]/nl
+            print("Perplexity = ", exp(lp/nw), "\t(", nl, ")", ssum[0][0]/nl)
 
         state_mean = [a/nl for a in state_sum]
         np.save(init, state_mean)
@@ -117,7 +117,7 @@ def main(name, vocabulary, init, text, calc):
             lp += lprob*nwords
             nw += nwords
             nl += 1
-            print "Perplexity = ", exp(lp/nw), "\t(", nl, ")"
+            print("Perplexity = ", exp(lp/nw), "\t(", nl, ")")
         
     exit(0)
 
