@@ -4,21 +4,55 @@ import numpy as np
 import os
 import pickle as pickle
 from util.BatchLoaderUnk import BatchLoaderUnk, Tokens
+from data_iterator import TextIterator
 from model.LSTMCNN import LSTMCNN, load_model
 from math import exp
 
 Train, Validation, Test = 0, 1, 2
 
 def main(opt):
-    loader = BatchLoaderUnk(opt.tokens, opt.data_dir, opt.batch_size, opt.seq_length, opt.max_word_l, opt.n_words, opt.n_chars)
-    opt.word_vocab_size = min(opt.n_words, len(loader.idx2word))
-    opt.char_vocab_size = min(opt.n_chars, len(loader.idx2char))
-    opt.max_word_l = loader.max_word_l
+    #loader = BatchLoaderUnk(opt.tokens, opt.data_dir, opt.batch_size, opt.seq_length, opt.max_word_l, opt.n_words, opt.n_chars)
+
+    train = TextIterator(opt.data_dir + "/train.txt.equallines.batchsplit",
+                         opt.source_dict,
+                         opt.target_dict,
+                         max_word_len=opt.max_word_l,
+                         maxlen=opt.seq_length,
+                         n_words_source=opt.n_words,
+                         n_words_target=opt.n_words,
+                         batch_size = opt.batch_size)
+    valid = TextIterator(opt.data_dir + "/valid.txt.equallines.batchsplit",
+                         opt.source_dict,
+                         opt.target_dict,
+                         max_word_len=opt.max_word_l,
+                         maxlen=opt.seq_length,
+                         n_words_source=opt.n_words,
+                         n_words_target=opt.n_words,
+                         batch_size = opt.batch_size)
+
+    opt.word_vocab_size = opt.n_words
+    opt.char_vocab_size = len(train.source_dict)
     print('Word vocab size: ', opt.word_vocab_size, \
         ', Char vocab size: ', opt.char_vocab_size, \
         ', Max word length (incl. padding): ', opt.max_word_l)
 
     # define the model
+
+    if (False):
+        for s, t in train:
+            print(s[0], t[0])
+            #source = " ".join(list(map(train.inverse_source_dict.get, tuple(s[0]))))
+            source = ""
+            for word in s[0]:
+                source += " "
+                for char in word:
+                    source += train.inverse_source_dict[char]
+
+            target = ""
+            for word in t[0]:
+                target += " "
+                target += train.inverse_target_dict[word[0]]
+            print(source, target)
     if not opt.skip_train:
         print('creating an LSTM-CNN with ', opt.num_layers, ' layers')
         model = LSTMCNN(opt)
@@ -27,8 +61,8 @@ def main(opt):
             os.makedirs(opt.checkpoint_dir)
         pickle.dump(opt, open('{}/{}.pkl'.format(opt.checkpoint_dir, opt.savefile), "wb"))
         model.save('{}/{}.json'.format(opt.checkpoint_dir, opt.savefile))
-        model.fit_generator(loader.next_batch(Train), loader.split_sizes[Train], opt.max_epochs,
-                            loader.next_batch(Validation), loader.split_sizes[Validation], opt)
+        model.fit_generator(train, train.num_batches, opt.max_epochs,
+                            valid, valid.num_batches, opt)
         model.save_weights('{}/{}.h5'.format(opt.checkpoint_dir, opt.savefile), overwrite=True)
     else:
         model = load_model('{}/{}.json'.format(opt.checkpoint_dir, opt.savefile))
@@ -43,29 +77,31 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Train a word+character-level language model')
     # data
-    parser.add_argument('--data_dir', type=str, default='data/ptb', help='data directory. Should contain train.txt/valid.txt/test.txt with input data')
+    parser.add_argument('--data_dir', type=str, default='data/wikipedia', help='data directory. Should contain train.txt/valid.txt/test.txt with input data')
+    parser.add_argument('--source_dict', type=str, default='data/wikipedia/chardict.pkl', help='Source dictionary.')
+    parser.add_argument('--target_dict', type=str, default='data/wikipedia/worddict.pkl', help='Source dictionary.')
     # model params
     parser.add_argument('--rnn_size', type=int, default=650, help='size of LSTM internal state')
     parser.add_argument('--use_words', type=int, default=0, help='use words (1=yes)')
     parser.add_argument('--use_chars', type=int, default=1, help='use characters (1=yes)')
-    parser.add_argument('--highway_layers', type=int, default=2, help='number of highway layers')
+    parser.add_argument('--highway_layers', type=int, default=4, help='number of highway layers')
     parser.add_argument('--word_vec_size', type=int, default=650, help='dimensionality of word embeddings')
-    parser.add_argument('--char_vec_size', type=int, default=15, help='dimensionality of character embeddings')
+    parser.add_argument('--char_vec_size', type=int, default=30, help='dimensionality of character embeddings')
     parser.add_argument('--feature_maps', type=int, nargs='+', default=[50,100,150,200,200,200,200], help='number of feature maps in the CNN')
     parser.add_argument('--kernels', type=int, nargs='+', default=[1,2,3,4,5,6,7], help='conv net kernel widths')
-    parser.add_argument('--num_layers', type=int, default=2, help='number of layers in the LSTM')
+    parser.add_argument('--num_layers', type=int, default=3, help='number of layers in the LSTM')
     parser.add_argument('--dropout', type=float, default=0.5, help='dropout. 0 = no dropout')
     # optimization
-    parser.add_argument('--learning_rate', type=float, default=1, help='starting learning rate')
+    parser.add_argument('--learning_rate', type=float, default=0.1, help='starting learning rate')
     parser.add_argument('--learning_rate_decay', type=float, default=0.5, help='learning rate decay')
     parser.add_argument('--decay_when', type=float, default=1, help='decay if validation perplexity does not improve by more than this much')
     parser.add_argument('--batch_norm', type=int, default=0, help='use batch normalization over input embeddings (1=yes)')
-    parser.add_argument('--seq_length', type=int, default=35, help='number of timesteps to unroll for')
-    parser.add_argument('--batch_size', type=int, default=20, help='number of sequences to train on in parallel')
+    parser.add_argument('--seq_length', type=int, default=50, help='number of timesteps to unroll for')
+    parser.add_argument('--batch_size', type=int, default=50, help='number of sequences to train on in parallel')
     parser.add_argument('--max_epochs', type=int, default=25, help='number of full passes through the training data')
-    parser.add_argument('--max_grad_norm', type=float, default=5, help='normalize gradients at')
-    parser.add_argument('--max_word_l', type=int, default=65, help='maximum word length')
-    parser.add_argument('--n_words', type=int, default=30000, help='max number of words in model')
+    parser.add_argument('--max_grad_norm', type=float, default=2, help='normalize gradients at')
+    parser.add_argument('--max_word_l', type=int, default=15, help='maximum word length')
+    parser.add_argument('--n_words', type=int, default=60000, help='max number of words in model')
     parser.add_argument('--n_chars', type=int, default=100, help='max number of char in model')
     # bookkeeping
     parser.add_argument('--seed', type=int, default=3435, help='manual random number generator seed')
