@@ -2,6 +2,7 @@ import numpy
 import random
 import copy
 from subprocess import check_output
+from collections import deque
 
 import pickle as pkl
 import gzip
@@ -18,7 +19,7 @@ class TextIterator:
     def __init__(self, source,
                  source_dict, target_dict,
                  batch_size=32,
-                 maxlen=100,
+                 maxlen=75,
                  char_mode=True,
                  max_word_len=16,
                  n_words_source=-1,
@@ -44,6 +45,8 @@ class TextIterator:
         self.n_words_source = n_words_source
         self.n_words_target = n_words_target
 
+        self.wrap_buffer = deque()
+
         self.source_buffer = []
         self.target_buffer = []
         self.k = batch_size * k
@@ -55,13 +58,13 @@ class TextIterator:
 
     def reset(self):
         self.source.seek(0)
-        self.target.seek(0)
+        self.wrap_buffer = deque()
 
     def __next__(self):
         if self.end_of_data:
             self.end_of_data = False
             self.reset()
-            raise StopIteration
+            #raise StopIteration
 
         source = []
         target = []
@@ -90,7 +93,7 @@ class TextIterator:
         if len(self.source_buffer) == 0:
             self.end_of_data = False
             self.reset()
-            raise StopIteration
+            #raise StopIteration
 
         try:
             # actual work here
@@ -98,20 +101,32 @@ class TextIterator:
 
                 # read from source file and map to word index
                 try:
-                    ss = self.source_buffer.pop()
+                    ss = self.source_buffer.pop(0)
                 except IndexError:
                     break
 
-                tt = copy.copy(ss)
-                tt = tt[1:]
-                tt = [2] + [self.target_dict[w] if w in self.target_dict else 1 for w in tt]
+                #import ipdb; ipdb.set_trace()
+                if len(self.wrap_buffer) < self.batch_size:
+                    tt = copy.copy(ss)
+                    tt = tt[1:]
+                    self.wrap_buffer.append(ss[-1])
+                    ss = ss[:-1]
+                else:
+                    tt = copy.copy(ss)
+                    newss = [self.wrap_buffer.popleft()] + ss[:-1]
+                    self.wrap_buffer.append(ss[-1])
+                    ss = newss
+
+                tt = [self.target_dict[w] if w in self.target_dict else 1 for w in tt]
                 if self.n_words_target > 0:
-                    tt = [w if w < self.n_words_source else 1 for w in tt]
+                    tt = [w if w < self.n_words_target else 1 for w in tt]
 
                 if(self.char_mode):
                     sschars = []
                     for i, word in enumerate(ss):
-                        characters = numpy.asarray(list(map(self.source_dict.get, word[:self.max_word_len])))
+                        characters = [self.source_dict[c] if c in self.source_dict else 1 for c in word]
+                        characters = [2] + characters + [3]
+                        characters = numpy.asarray(characters)
                         characters.resize(self.max_word_len)
                         sschars.append(characters)
                     ss = sschars
@@ -134,17 +149,16 @@ class TextIterator:
         if len(source) <= 0 or len(target) <= 0:
             self.end_of_data = False
             self.reset()
-            raise StopIteration
+            #raise StopIteration
 
 
-        max_length = max(list(map(len, source)) + list(map(len, target)))
 
         parsed_source = [numpy.asarray(s) for s in source]
-        source_array = numpy.zeros((self.batch_size, max_length, self.max_word_len), dtype = "int32")
+        source_array = numpy.zeros((self.batch_size, self.maxlen, self.max_word_len), dtype = "int32")
         for i, array in enumerate(parsed_source):
             source_array[i, :array.shape[0], :] = array
 
-        target_array = numpy.zeros((self.batch_size, max_length, 1), dtype = "int32")
+        target_array = numpy.zeros((self.batch_size, self.maxlen, 1), dtype = "int32")
         for i, array in enumerate(target):
             target_array[i, :len(array), 0] = array
 

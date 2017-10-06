@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pickle as pickle
 from util.BatchLoaderUnk import BatchLoaderUnk, Tokens
+from preprocess_data import split_and_preprocess
 from data_iterator import TextIterator
 from model.LSTMCNN import LSTMCNN, load_model
 from math import exp
@@ -37,22 +38,6 @@ def main(opt):
         ', Max word length (incl. padding): ', opt.max_word_l)
 
     # define the model
-
-    if (False):
-        for s, t in train:
-            print(s[0], t[0])
-            #source = " ".join(list(map(train.inverse_source_dict.get, tuple(s[0]))))
-            source = ""
-            for word in s[0]:
-                source += " "
-                for char in word:
-                    source += train.inverse_source_dict[char]
-
-            target = ""
-            for word in t[0]:
-                target += " "
-                target += train.inverse_target_dict[word[0]]
-            print(source, target)
     if not opt.skip_train:
         print('creating an LSTM-CNN with ', opt.num_layers, ' layers')
         model = LSTMCNN(opt)
@@ -70,7 +55,16 @@ def main(opt):
         print(model.summary())
 
     # evaluate on full test set.
-    test_perp = model.evaluate_generator(loader.next_batch(Test), loader.split_sizes[Test])
+
+    test = TextIterator(opt.data_dir + "/test.txt.equallines.batchsplit",
+                         opt.source_dict,
+                         opt.target_dict,
+                         max_word_len=opt.max_word_l,
+                         maxlen=opt.seq_length,
+                         n_words_source=opt.n_words,
+                         n_words_target=opt.n_words,
+                         batch_size = opt.batch_size)
+    test_perp = model.evaluate_generator(test, test.num_batches)
     print('Perplexity on test set: ', exp(test_perp))
 
 if __name__=="__main__":
@@ -92,21 +86,21 @@ if __name__=="__main__":
     parser.add_argument('--num_layers', type=int, default=3, help='number of layers in the LSTM')
     parser.add_argument('--dropout', type=float, default=0.5, help='dropout. 0 = no dropout')
     # optimization
-    parser.add_argument('--learning_rate', type=float, default=0.1, help='starting learning rate')
+    parser.add_argument('--learning_rate', type=float, default=0.5, help='starting learning rate')
     parser.add_argument('--learning_rate_decay', type=float, default=0.5, help='learning rate decay')
     parser.add_argument('--decay_when', type=float, default=1, help='decay if validation perplexity does not improve by more than this much')
     parser.add_argument('--batch_norm', type=int, default=0, help='use batch normalization over input embeddings (1=yes)')
-    parser.add_argument('--seq_length', type=int, default=50, help='number of timesteps to unroll for')
+    parser.add_argument('--seq_length', type=int, default=75, help='number of timesteps to unroll for')
     parser.add_argument('--batch_size', type=int, default=50, help='number of sequences to train on in parallel')
     parser.add_argument('--max_epochs', type=int, default=25, help='number of full passes through the training data')
     parser.add_argument('--max_grad_norm', type=float, default=2, help='normalize gradients at')
-    parser.add_argument('--max_word_l', type=int, default=15, help='maximum word length')
+    parser.add_argument('--max_word_l', type=int, default=17, help='maximum word length')
     parser.add_argument('--n_words', type=int, default=60000, help='max number of words in model')
-    parser.add_argument('--n_chars', type=int, default=100, help='max number of char in model')
+    parser.add_argument('--n_chars', type=int, default=200, help='max number of char in model')
     # bookkeeping
     parser.add_argument('--seed', type=int, default=3435, help='manual random number generator seed')
     parser.add_argument('--print_every', type=int, default=500, help='how many steps/minibatches between printing out the loss')
-    parser.add_argument('--save_every', type=int, default=5, help='save every n epochs')
+    parser.add_argument('--save_every', type=int, default=1, help='save every n epochs')
     parser.add_argument('--checkpoint_dir', type=str, default='cv', help='output directory where checkpoints get written')
     parser.add_argument('--savefile', type=str, default='char-large', help='filename to autosave the checkpoint to. Will be inside checkpoint_dir/')
     parser.add_argument('--EOS', type=str, default='+', help='<EOS> symbol. should be a single unused character (like +) for PTB and blank for others')
@@ -131,5 +125,11 @@ if __name__=="__main__":
 
     print('parsed parameters:')
     print(json.dumps(vars(params), indent = 2))
+
+    files = [params.data_dir + "/train.txt",
+             params.data_dir + "/valid.txt",
+             params.data_dir + "/test.txt"]
+
+    split_and_preprocess(files, params.seq_length, params.batch_size)
 
     main(params)
