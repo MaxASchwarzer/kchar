@@ -8,6 +8,7 @@ import argparse
 
 from collections import OrderedDict
 
+
 def main(args):
     word_freqs = OrderedDict()
     char_freqs = OrderedDict()

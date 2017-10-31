@@ -134,7 +134,7 @@ class Highway(Layer):
                   'input_dim': self.input_dim}
         base_config = super(Highway, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-    
+
 class sSGD(SGD):
     def __init__(self, scale=1., **kwargs):
         super(sSGD, self).__init__(**kwargs)
@@ -149,7 +149,7 @@ class sSGD(SGD):
         if hasattr(self, 'clipvalue') and self.clipvalue > 0:
             grads = [K.clip(g, -self.clipvalue, self.clipvalue) for g in grads]
         return grads
-    
+
 class sModel(Model):
     def fit_generator(self, generator, steps_per_epoch, epochs, validation_data, validation_steps, opt):
         val_losses = []
@@ -186,7 +186,7 @@ def load_model(name):
 
 
 def CNN(seq_length, length, input_size, feature_maps, kernels, x):
-    
+
     concat_input = []
     for feature_map, kernel in zip(feature_maps, kernels):
         reduced_l = length - kernel + 1
@@ -237,7 +237,7 @@ def LSTMCNN(opt):
         x = BatchNormalization()(x)
 
     for l in range(opt.highway_layers):
-        x = TimeDistributed(Highway(activation='relu'))(x)
+        x = TimeDistributed(Highway(activation='elu'))(x)
 
     for l in range(opt.num_layers):
         x = LSTM(opt.rnn_size, activation='tanh', recurrent_activation='sigmoid', return_sequences=True, stateful=True)(x)

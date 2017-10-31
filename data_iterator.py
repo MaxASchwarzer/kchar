@@ -30,9 +30,12 @@ class TextIterator:
             self.source_dict = pkl.load(f)
         with open(target_dict, 'rb') as f:
             self.target_dict = pkl.load(f)
+        if n_words_target > 0:
+            keys = list(self.target_dict.keys())
+            for key in keys:
+                if self.target_dict[key] > n_words_target:
+                    del self.target_dict[key]
 
-        self.inverse_source_dict = {v: k for k, v in self.source_dict.items()}
-        self.inverse_target_dict = {v: k for k, v in self.target_dict.items()}
 
         self.batch_size = batch_size
         self.maxlen = maxlen

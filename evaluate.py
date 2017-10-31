@@ -6,22 +6,33 @@ import pickle as pickle
 from model.LSTMCNN import LSTMCNN
 from util.BatchLoaderUnk import Tokens, encoding # needed by pickle.load()
 from math import exp
+from collections import OrderedDict
 
 def vocab_unpack(vocab):
     return vocab['idx2word'], vocab['word2idx'][()], vocab['idx2char'], vocab['char2idx'][()]
 
 class Vocabulary:
-    def __init__(self, tokens, vocab_file, max_word_l=65):
+    def __init__(self,
+                 tokens,
+                 word_vocab_file,
+                 char_vocab_file,
+                 max_word_l=17,
+                 word_vocab_size = 60000):
         self.tokens = tokens
         self.max_word_l = max_word_l
         self.prog = re.compile('\s+')
 
         print('loading vocabulary file...')
-        vocab_mapping = np.load(vocab_file)
-        self.idx2word, self.word2idx, self.idx2char, self.char2idx = vocab_unpack(vocab_mapping)
+        with open(word_vocab_file, "rb") as f:
+            word2idx_large = pickle.load(f)
+            self.word2idx = {k:v for k, v in word2idx_large.items() if v <= word_vocab_size}
+            self.idx2word = {v:k for k, v in self.word2idx.items()}
+        with open(char_vocab_file, "rb") as f:
+            self.char2idx = pickle.load(f)
+            self.idx2char = {v:k for k,v in self.char2idx.items()}
         self.vocab_size = len(self.idx2word)
         print('Word vocab size: %d, Char vocab size: %d' % (len(self.idx2word), len(self.idx2char)))
-        self.word_vocab_size = len(self.idx2word)
+        self.word_vocab_size = word_vocab_size
         self.char_vocab_size = len(self.idx2char)
 
     def index(self, word):
@@ -30,7 +41,7 @@ class Vocabulary:
             w = self.word2idx[self.tokens.UNK]
         else:
             w = self.word2idx[word] if word in self.word2idx else self.word2idx[self.tokens.UNK]
-            
+
         c = np.zeros(self.max_word_l, dtype='int32')
         chars = [self.char2idx[self.tokens.START]] # start-of-word symbol
         chars += [self.char2idx[char] for char in word if char in self.char2idx]
@@ -40,7 +51,7 @@ class Vocabulary:
             c = chars[:self.max_word_l]
         else:
             c[:len(chars)] = chars
-            
+
         return w, c
 
     def get_input(self, line):
@@ -67,11 +78,19 @@ class Vocabulary:
 
 
 class evaluator:
-    def __init__(self, name, vocabulary, init):
+    def __init__(self, name, word_vocab_file, char_vocab_file, word_vocab_size, init):
         self.opt = pickle.load(open('{}.pkl'.format(name), "rb"))
         self.opt.batch_size = 1
         self.opt.seq_length = 1
-        self.reader = Vocabulary(self.opt.tokens, vocabulary, max_word_l=self.opt.max_word_l)
+        tokens = Tokens(
+            EOS="eos",
+            UNK='UNK',    # unk word token
+            START='WORDSTART',  # start-of-word token
+            END='eos',    # end-of-word token
+            ZEROPAD='ZEROPAD' # zero-pad token
+        )
+        self.reader = Vocabulary(tokens, word_vocab_file, char_vocab_file,
+                                 max_word_l=self.opt.max_word_l, word_vocab_size = word_vocab_size)
         self.model = LSTMCNN(self.opt)
         self.model.load_weights('{}.h5'.format(name))
         if init:
@@ -86,10 +105,9 @@ class evaluator:
             self.model.set_states_value(self.state_mean)
         return self.model.evaluate(x, y, batch_size=1, verbose=0), nwords
 
-def main(name, vocabulary, init, text, calc):
-    
-    ev = evaluator(name, vocabulary, None if calc else init)
-    
+def main(name, word_vocab_file, char_vocab_file, word_vocab_size, init, text, calc):
+    ev = evaluator(name, word_vocab_file, char_vocab_file, word_vocab_size, None if calc else init)
+
     f = codecs.open(text, 'r', encoding)
     if calc:
         lp = 0;
@@ -118,17 +136,19 @@ def main(name, vocabulary, init, text, calc):
             nw += nwords
             nl += 1
             print("Perplexity = ", exp(lp/nw), "\t(", nl, ")")
-        
+
     exit(0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str)
-    parser.add_argument('--vocabulary', type=str)
+    parser.add_argument('--vocab_char', type=str)
+    parser.add_argument('--vocab_word', type=str)
     parser.add_argument('--init', type=str)
     parser.add_argument('--text', type=str)
-    parser.add_argument('--calc', action='store_true', default=False)
+    parser.add_argument("--vocab_size", type = int)
+    parser.add_argument('--calc', action='store_true')
 
     args = parser.parse_args()
 
-    main(args.model, args.vocabulary, args.init, args.text, args.calc)
+    main(args.model, args.vocab_word, args.vocab_char, args.vocab_size, args.init, args.text, args.calc)

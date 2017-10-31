@@ -116,11 +116,11 @@ if __name__=="__main__":
 
     # global constants for certain tokens
     params.tokens = Tokens(
-        EOS=params.EOS,
-        UNK='|',    # unk word token
-        START='{',  # start-of-word token
-        END='}',    # end-of-word token
-        ZEROPAD=' ' # zero-pad token
+        EOS="eos",
+        UNK='UNK',    # unk word token
+        START='WORDSTART',  # start-of-word token
+        END='eos',    # end-of-word token
+        ZEROPAD='ZEROPAD' # zero-pad token
     )
 
     print('parsed parameters:')
