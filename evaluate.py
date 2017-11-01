@@ -105,7 +105,7 @@ class evaluator:
             self.model.set_states_value(self.state_mean)
         return self.model.evaluate(x, y, batch_size=1, verbose=0), nwords
 
-def main(name, word_vocab_file, char_vocab_file, word_vocab_size, init, text, calc):
+def main(name, word_vocab_file, char_vocab_file, word_vocab_size, text, calc, init = None):
     ev = evaluator(name, word_vocab_file, char_vocab_file, word_vocab_size, None if calc else init)
 
     f = codecs.open(text, 'r', encoding)
@@ -151,4 +151,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.model, args.vocab_word, args.vocab_char, args.vocab_size, args.init, args.text, args.calc)
+    main(args.model, args.vocab_word, args.vocab_char, args.vocab_size, args.text, args.calc, init)
